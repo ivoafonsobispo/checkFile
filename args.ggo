@@ -1,0 +1,26 @@
+
+#
+# Basic Usage
+#
+
+package 	"checkFile"
+version 	"1.0"
+usage 		"./checkFile [options] [filename]"
+
+description 
+"  Check File is a program the verifies if the file extension correct.
+			
+  Valid Extension: PDF, GIF, JPG, PNG, MP4, ZIP, HTML
+  Usage: ./checkFile [options] [filename]
+			
+  Made with <3 by: Ivo Afonso Bispo <2200672> | Mariana Mariana <2200672>"
+
+
+#
+# Options
+#
+
+defgroup "checkfile-options" groupdesc="list of options for checkFile" required
+groupoption "file"   f  "fich"                 group="checkfile-options" string optional multiple
+groupoption "batch"  b  "fich_with_filenames"  group="checkfile-options" string optional
+groupoption "dir"    d  "directory"            group="checkfile-options" string optional
