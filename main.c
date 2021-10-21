@@ -1,9 +1,9 @@
 /**
- * @file main.c
- * @brief Main file for program usage
- * @date 2021-10-10
- * @author Ivo Afonso Bispo 2200672
- * @author Mariana Mariana 2200672
+ * @file    main.c
+ * @brief   Main file for program usage
+ * @date    2021-10-10
+ * @author  Ivo Afonso Bispo 2200672
+ * @author  Mariana Mariana 2200672
  */
 
 /* Public libraries */
@@ -25,11 +25,24 @@
 #define NUM_VALID_EXTENSIONS 7
 #define MAX_EXTENSION_SIZE 5
 
+/* Structs */
+typedef struct /* Struct to save the values for the summary output */
+{
+    int files_ok;
+    int files_mismatch;
+    int files_error;
+    int files_analized;
+
+} Results;
+
 /* Created functions */
 void outputFile(void);
 void deleteFile(char *filename);
-void extensionValidation(char *file_to_validate);
+void extensionValidation(char *file_to_validate, Results *files);
 char *returnFileExtension(char *filename, char c);
+
+/* Global variables */
+char output_file[16] = "temp-output.txt";
 
 int main(int argc, char *argv[]) /* function: Main program execution */
 {
@@ -46,6 +59,7 @@ int main(int argc, char *argv[]) /* function: Main program execution */
     /* fich */
     if (args_info.file_given)
     {
+        Results files = {0, 0, 0, 0}; /* initialized struct */
         for (size_t i = 0; i < args_info.file_given; ++i)
         {
             switch (fork()) /* -1: error; 0: son process; default: parent process */
@@ -64,16 +78,65 @@ int main(int argc, char *argv[]) /* function: Main program execution */
             default: /* Code only executed by the parent process */
                 waitpid(-1, &status, 0);
                 /* Makes the file validations */
-                extensionValidation(args_info.file_arg[i]);
+                extensionValidation(args_info.file_arg[i], &files);
                 break;
             }
         }
     }
 
+    /* fich_with_filenames */
+    if (args_info.batch_arg)
+    {
+        /* Variables */
+        char *batch_file_line = MALLOC(sizeof(char) + 1);
+        size_t batch_file_len = 0;
+        ssize_t batch_file_nread;
+        Results files = {0, 0, 0, 0}; /* initialized struct */
+
+        /* Verifies if file is txt */
+        char *batch_file_extension = returnFileExtension(args_info.batch_arg, '.');
+        if (strcmp(batch_file_extension, "txt") != 0)
+            ERROR(1, "File: %s is not a txt", args_info.batch_arg);
+
+        /* Opens file sent by user */
+        FILE *fich_with_filenames = fopen(args_info.batch_arg, "r");
+        if (fich_with_filenames == NULL)
+            ERROR(1, "Failed to open the file '%s'", args_info.batch_arg);
+
+        printf("[INFO] analyzing files listed in ‘%s’\n", args_info.batch_arg);
+
+        while ((batch_file_nread = getline(&batch_file_line, &batch_file_len, fich_with_filenames)) != -1) /* Reads line from file */
+        {
+            switch (fork())
+            {
+            case -1: /* Code only executed in case of error */
+                ERROR(1, "fork() failed!");
+                break;
+
+            case 0: /* Code only executed by the son process */
+                /* Creates output file */
+                outputFile();
+                batch_file_line[strcspn(batch_file_line, "\n")] = 0;
+                execlp("file", "file", "-b", "--mime-type", batch_file_line, NULL);
+                break;
+
+            default: /* Code only executed by the parent process */
+                waitpid(-1, &status, 0);
+                extensionValidation(batch_file_line, &files);
+                break;
+            }
+        }
+
+        printf("[SUMMARY] files analyzed : %d; files OK : %d; files MISMATCH : %d; errors: %d;\n", files.files_analized, files.files_ok, files.files_mismatch, files.files_error);
+
+        fclose(fich_with_filenames);
+        free(batch_file_line);
+    }
+
     /* Free of gengtopt args */
     cmdline_parser_free(&args_info);
 
-    deleteFile("temp-output.txt");
+    deleteFile(output_file);
 
     return 0;
 }
@@ -81,21 +144,21 @@ int main(int argc, char *argv[]) /* function: Main program execution */
 void outputFile(void) /* Funtion: Creates the output file with user file extensions */
 {
     /* Creates the output file */
-    int fd = open("temp-output.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    int fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 
     /* Validates file creation */
     if (fd < 0)
-        ERROR(1, "Can't open file - temp-output.txt");
+        ERROR(1, "Can't open file - %s", output_file);
 
     /* Duplicates the descriptor “newfd” to “oldfd” */
     dup2(fd, STDOUT_FILENO);
 
     /* Validates closing file */
     if (close(fd) < 0)
-        ERROR(1, "Closing - temp-output.txt");
+        ERROR(1, "Closing - %s", output_file);
 }
 
-void extensionValidation(char *file_to_validate) /* Function: Checks file extension validation */
+void extensionValidation(char *file_to_validate, Results *file_results) /* Function: Checks file extension validation */
 {
     /* Variables */
     char valid_extension[NUM_VALID_EXTENSIONS][MAX_EXTENSION_SIZE] = {"pdf", "gif", "jpg", "png", "mp4", "zip", "html"};
@@ -104,10 +167,10 @@ void extensionValidation(char *file_to_validate) /* Function: Checks file extens
     char *file_extension_user = NULL; /* Extension from user file */
     size_t len = 0;
     ssize_t nread;
-    int files_ok = 0, files_mismatch = 0, file_not_supported = 0, files_erros = 0, files_analyzed = 0;
+    int file_not_supported = 0;
 
     /* Opens output file + validates it */
-    FILE *f = fopen("temp-output.txt", "r");
+    FILE *f = fopen(output_file, "r");
     if (f == NULL)
         ERROR(1, "Could not open temp-ouput.txt for reading");
 
@@ -124,18 +187,18 @@ void extensionValidation(char *file_to_validate) /* Function: Checks file extens
         file_not_supported = 0;
         for (int i = 0; i < NUM_VALID_EXTENSIONS; ++i)
         {
-            /* Verifies if extension is valid */
+            /* Verifies if extension is a valid extension */
             if ((strcmp(file_extension_user, valid_extension[i])) == 0)
             {
-                /* Verifica se a extensão é a correta */
-                if (strcmp(file_extension_user, file_extension_out) || (strcmp("jpeg", file_extension_out)))
+                /* Verifies if the file user extension equals the output extension */
+                if (strcmp(file_extension_out, file_extension_user) == 0 || strcmp(file_extension_out, "jpeg") == 0)
                 {
                     printf("[OK] '%s': extension '%s' matches file type '%s'\n", file_to_validate, file_extension_user, valid_extension[i]);
-                    files_ok++;
+                    file_results->files_ok++;
                     break;
                 }
                 printf("[MISMATCH] '%s': extension is '%s', file type is '%s'\n", file_to_validate, file_extension_user, file_extension_out);
-                files_mismatch++;
+                file_results->files_mismatch++;
                 break;
             }
             file_not_supported++;
@@ -143,12 +206,10 @@ void extensionValidation(char *file_to_validate) /* Function: Checks file extens
         if (NUM_VALID_EXTENSIONS == file_not_supported)
         {
             printf("[INFO] '%s': type '%s' is not supported by checkFile\n", file_extension_user, file_extension_out);
-            files_erros++;
+            file_results->files_error++;
         }
-        files_analyzed++;
+        file_results->files_analized++;
     }
-
-    printf("[SUMMARY] files analyzed : %d; files OK : %d; files MISMATCH : %d; errors: %d;\n", files_analyzed, files_ok, files_mismatch, files_erros);
 
     fclose(f);
     free(extension);
@@ -161,7 +222,7 @@ char *returnFileExtension(char *filename, char c) /* Function: Returns the strin
     extension = strrchr(filename, c);
     /* Validates if file extension exists */
     if (!extension || extension == filename)
-        ERROR(1, "Error finding file extension");
+        ERROR(1, "finding file extension - extension: %s filename: %s", extension, filename);
 
     /* Changes the string to be the position after the removable character */
     return ++extension;
