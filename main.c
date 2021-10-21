@@ -225,6 +225,16 @@ void extensionValidation(char *file_to_validate, Results *file_results) /* Funct
         file_extension_out[strcspn(file_extension_out, "\n")] = 0;
         file_extension_user[strcspn(file_extension_user, "\n")] = 0;
 
+        file_results->files_analized++;
+
+        /* Searches in the file() output for the following string  */
+        if (strstr(file_extension_out, "(No such file or directory)"))
+        {
+            printf("[ERROR] cannot open file ‘%s’ – No such file or directory\n", file_to_validate);
+            file_results->files_error++;
+            break;
+        }
+
         file_not_supported = 0;
         for (int i = 0; i < NUM_VALID_EXTENSIONS; ++i)
         {
@@ -244,12 +254,12 @@ void extensionValidation(char *file_to_validate, Results *file_results) /* Funct
             }
             file_not_supported++;
         }
+        /* Validates if the file sent is valid by checkfile */
         if (NUM_VALID_EXTENSIONS == file_not_supported)
         {
             printf("[INFO] '%s': type '%s' is not supported by checkFile\n", file_extension_user, file_extension_out);
             file_results->files_error++;
         }
-        file_results->files_analized++;
     }
 
     fclose(f);
@@ -263,7 +273,8 @@ char *returnFileExtension(char *filename, char c) /* Function: Returns the strin
     extension = strrchr(filename, c);
     /* Validates if file extension exists */
     if (!extension || extension == filename)
-        ERROR(1, "finding file extension - extension: %s filename: %s", extension, filename);
+        return filename;
+    // ERROR(1, "finding file extension - extension: %s filename: %s", extension, filename);
 
     /* Changes the string to be the position after the removable character */
     return ++extension;
