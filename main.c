@@ -15,6 +15,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <dirent.h>
 
 /* Private libraries */
 #include "args.h"
@@ -131,6 +132,46 @@ int main(int argc, char *argv[]) /* function: Main program execution */
 
         fclose(fich_with_filenames);
         free(batch_file_line);
+    }
+
+    /* directory */
+    if (args_info.dir_arg)
+    {
+        /* Variables */
+        struct dirent *dir;
+        Results files = {0, 0, 0, 0}; /* initialized struct */
+
+        /* Opens path to directory */
+        DIR *pDir = opendir(args_info.dir_arg);
+        if (pDir == NULL)
+            ERROR(1, "Could not open %s for reading", args_info.dir_arg);
+
+        printf("[INFO] analyzing files of directory ‘%s’\n", args_info.dir_arg);
+
+        while ((dir = readdir(pDir)) != NULL)
+        {
+            if (strcmp(dir->d_name, ".") == 0 || strcmp(dir->d_name, "..") == 0)
+                continue;
+
+            switch (fork())
+            {
+            case -1: /* Code only executed in case of error */
+                ERROR(1, "fork() failed!");
+                break;
+
+            case 0: /* Code only executed by the son process */
+                /* Creates output file */
+                outputFile();
+                execlp("file", "file", "-b", "--mime-type", dir->d_name, NULL);
+                break;
+
+            default: /* Code only executed by the parent process */
+                waitpid(-1, &status, 0);
+                extensionValidation(dir->d_name, &files);
+                break;
+            }
+        }
+        printf("[SUMMARY] files analyzed : %d; files OK : %d; files MISMATCH : %d; errors: %d;\n", files.files_analized, files.files_ok, files.files_mismatch, files.files_error);
     }
 
     /* Free of gengtopt args */
