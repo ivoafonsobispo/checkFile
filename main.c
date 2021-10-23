@@ -16,17 +16,26 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <signal.h>
+#include <time.h>
 
 /* Private libraries */
 #include "args.h"
 #include "debug.h"
 #include "memory.h"
 #include "extension.h"
-#include "signal.h"
 
 /* Created functions */
 void outputFile(void);
 void deleteFile(char *filename);
+void treatSignalInfo(int signal, siginfo_t *siginfo, void *context);
+
+/* Global Variables */
+/* Flag to wait for the right signal */
+int sig_SIGQUIT = 1;
+int sig_SIGINT = 1;
+int sig_SIGUSR1 = 1;
+char *batch_filename = NULL;
 
 int main(int argc, char *argv[]) /* function: Main program execution */
 {
@@ -34,19 +43,45 @@ int main(int argc, char *argv[]) /* function: Main program execution */
     struct gengetopt_args_info args_info;
 
     /* Create struct for singal treatment */
-    struct sigaction act;
+    struct sigaction act_info;
 
     /* Variables */
     int status;
+
+    /* Signals */
+    act_info.sa_sigaction = treatSignalInfo;
+    sigemptyset(&act_info.sa_mask);
+    act_info.sa_flags = 0;
+    act_info.sa_flags |= SA_SIGINFO; /* Adicional info about signals */
 
     /* Verify if gengtopt args is valid */
     if (cmdline_parser(argc, argv, &args_info) != 0)
         ERROR(1, "cmdline_parser() failed!");
 
+    /* Verifications for signals */
+    if (sigaction(SIGQUIT, &act_info, NULL) < 0)
+        ERROR(1, "sigaction(SIGQUIT) failed!");
+    if (sigaction(SIGINT, &act_info, NULL) < 0)
+        ERROR(1, "sigaction(SIGINT) failed!");
+    if (sigaction(SIGUSR1, &act_info, NULL) < 0)
+        ERROR(1, "sigaction(SIGUSR1) failed!");
+
+    /* Ignore SIGUSR1 signal if not batch/fich_with_filenames */
+    if (!args_info.batch_arg)
+        signal(SIGUSR1, SIG_IGN);
+
     /* fich */
     if (args_info.file_given)
     {
+        /* Asks for signal and processeds with application */
+        printf("Please send a SIGQUIT to the process PID: %d\nUsage: kill -s SIGQUIT <PID>\n\n", getpid());
+
+        /* Waits for the right signal */
+        while (sig_SIGQUIT)
+            pause();
+
         Results files = {0, 0, 0, 0}; /* initialized struct */
+
         for (size_t i = 0; i < args_info.file_given; ++i)
         {
             switch (fork()) /* -1: error; 0: son process; default: parent process */
@@ -69,11 +104,24 @@ int main(int argc, char *argv[]) /* function: Main program execution */
                 break;
             }
         }
+        /* Waits for the right signal */
+        while (sig_SIGINT)
+            pause();
     }
 
     /* fich_with_filenames */
     if (args_info.batch_arg)
     {
+
+        /* Asks for signal and processeds with application */
+        printf("Please send a SIGQUIT to the process PID: %d\nUsage: kill -s SIGQUIT <PID>\n\n", getpid());
+
+        batch_filename = args_info.batch_arg;
+
+        /* Waits for the right signal */
+        while (sig_SIGQUIT && sig_SIGUSR1)
+            pause();
+
         /* Variables */
         char *batch_file_line = MALLOC(sizeof(char) + 1);
         size_t batch_file_len = 0;
@@ -118,11 +166,22 @@ int main(int argc, char *argv[]) /* function: Main program execution */
 
         fclose(fich_with_filenames);
         free(batch_file_line);
+
+        /* Waits for the right signal */
+        while (sig_SIGINT)
+            pause();
     }
 
     /* directory */
     if (args_info.dir_arg)
     {
+        /* Asks for signal and processeds with application */
+        printf("Please send a SIGQUIT to the process PID: %d\nUsage: kill -s SIGQUIT <PID>\n\n", getpid());
+
+        /* Waits for the right signal */
+        while (sig_SIGQUIT)
+            pause();
+
         /* Variables */
         struct dirent *dir;
         Results files = {0, 0, 0, 0}; /* initialized struct */
@@ -158,6 +217,10 @@ int main(int argc, char *argv[]) /* function: Main program execution */
             }
         }
         printf("[SUMMARY] files analyzed : %d; files OK : %d; files MISMATCH : %d; errors: %d;\n", files.files_analized, files.files_ok, files.files_mismatch, files.files_error);
+
+        /* Waits for the right signal */
+        while (sig_SIGINT)
+            pause();
     }
 
     /* Free of gengtopt args */
@@ -201,4 +264,36 @@ void deleteFile(char *filename) /* Function: Deletes file */
         wait(NULL);
         break;
     }
+}
+
+void treatSignalInfo(int signal, siginfo_t *siginfo, void *context)
+{
+    (void)context;
+    int aux = errno;
+
+    /* Gets current time */
+    time_t t = time(NULL);
+    struct tm tm = *localtime(&t);
+
+    switch (signal)
+    {
+    case 3: /* SIGQUIT value = 3 */
+        printf("Captured SIGQUIT signal (sent by PID: %ld). Use SIGINT to terminate application.\n\n", (long)siginfo->si_pid);
+        sig_SIGQUIT = 0; /* Stop the loop */
+        break;
+
+    case 2: /* SIGINT value = 2 */
+        printf("Captured SIGINT signal (sent by PID: %ld).\n\n", (long)siginfo->si_pid);
+        sig_SIGINT = 0; /* Stop the loop */
+        break;
+
+    default: /* SIGUSR1 value = diferent values */
+        printf("Captured SIGUSR1 signal (sent by PID: %ld). Use SIGINT to terminate application.\n", (long)siginfo->si_pid);
+        printf("Start Process at %d.%02d.%02d_%02dh%02d:%02d\n", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+        printf("Processing file nº%d/%s\n\n", getpid(), batch_filename);
+        sig_SIGUSR1 = 0; /* Stop the loop */
+        break;
+    }
+
+    errno = aux;
 }
