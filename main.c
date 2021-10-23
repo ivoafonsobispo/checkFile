@@ -22,6 +22,7 @@
 #include "debug.h"
 #include "memory.h"
 #include "extension.h"
+#include "signal.h"
 
 /* Created functions */
 void outputFile(void);
@@ -31,6 +32,9 @@ int main(int argc, char *argv[]) /* function: Main program execution */
 {
     /* Create struct for gengtopt args */
     struct gengetopt_args_info args_info;
+
+    /* Create struct for singal treatment */
+    struct sigaction act;
 
     /* Variables */
     int status;
