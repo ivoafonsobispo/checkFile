@@ -205,9 +205,12 @@ int main(int argc, char *argv[]) /* function: Main program execution */
                 break;
 
             case 0: /* Code only executed by the son process */
+                /* Adds "/" to know if file is directory */
+                strcat(args_info.dir_arg, "/");
+                strcat(args_info.dir_arg, dir->d_name);
                 /* Creates output file */
                 outputFile();
-                execlp("file", "file", "-b", "--mime-type", dir->d_name, NULL);
+                execlp("file", "file", "-b", "--mime-type", args_info.dir_arg, NULL);
                 break;
 
             default: /* Code only executed by the parent process */
