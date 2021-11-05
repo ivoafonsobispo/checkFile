@@ -114,7 +114,7 @@ int main(int argc, char *argv[]) /* function: Main program execution */
     {
 
         /* Asks for signal and processeds with application */
-        printf("Please send a SIGQUIT to the process PID: %d\nUsage: kill -s SIGQUIT <PID>\n\n", getpid());
+        printf("Please send a SIGQUIT or SIGUSR1 to the process PID: %d\nUsage: kill -s SIGQUIT <PID>\n\n", getpid());
 
         batch_filename = args_info.batch_arg;
 
