@@ -80,3 +80,14 @@ char *returnFileExtension(char *filename, char c) /* Function: Returns the strin
     /* Changes the string to be the position after the removable character */
     return ++extension;
 }
+
+void split_path_file(char **p, char **f, char *pf) /* Function: To get file path and name */
+{
+    char *slash = pf, *next;
+    while ((next = strpbrk(slash + 1, "\\/")))
+        slash = next;
+    if (pf != slash)
+        slash++;
+    *p = strndup(pf, slash - pf);
+    *f = strdup(slash);
+}

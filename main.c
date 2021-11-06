@@ -127,6 +127,7 @@ int main(int argc, char *argv[]) /* function: Main program execution */
         size_t batch_file_len = 0;
         ssize_t batch_file_nread;
         Results files = {0, 0, 0, 0}; /* initialized struct */
+        char *file = NULL;
 
         /* Verifies if file is txt */
         char *batch_file_extension = returnFileExtension(args_info.batch_arg, '.');
@@ -140,6 +141,9 @@ int main(int argc, char *argv[]) /* function: Main program execution */
 
         printf("[INFO] analyzing files listed in ‘%s’\n", args_info.batch_arg);
 
+        /* Saves the path of the user file */
+        split_path_file(&file, &batch_file_line, args_info.batch_arg);
+
         while ((batch_file_nread = getline(&batch_file_line, &batch_file_len, fich_with_filenames)) != -1) /* Reads line from file */
         {
             switch (fork())
@@ -149,10 +153,12 @@ int main(int argc, char *argv[]) /* function: Main program execution */
                 break;
 
             case 0: /* Code only executed by the son process */
+                /* Adds each file to the user file path */
+                strcat(file, batch_file_line);
+                file[strcspn(file, "\n")] = 0;
                 /* Creates output file */
                 outputFile();
-                batch_file_line[strcspn(batch_file_line, "\n")] = 0;
-                execlp("file", "file", "-b", "--mime-type", batch_file_line, NULL);
+                execlp("file", "file", "-b", "--mime-type", file, NULL);
                 break;
 
             default: /* Code only executed by the parent process */

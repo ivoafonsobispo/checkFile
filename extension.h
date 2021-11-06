@@ -23,3 +23,4 @@ typedef struct /* Struct to save the values for the summary output */
 /* Created functions */
 void extensionValidation(char *file_to_validate, Results *file_results); /* Function: Checks file extension validation */
 char *returnFileExtension(char *filename, char c);                       /* Function: Returns the string of the extension */
+void split_path_file(char **p, char **f, char *pf);                      /* Function: To get file path and name */
